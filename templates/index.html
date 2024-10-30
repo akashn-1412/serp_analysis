@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SERP Analysis</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.0.3/tailwind.min.css">
+</head>
+<body class="p-4">
+    <h2 class="text-2xl font-semibold">SERP Analysis</h2>
+    <p class="mt-2 text-gray-600">Enter the location and website to test SERP.</p>
+
+    <div class="mt-6">
+        <div class="flex flex-col md:flex-row md:space-x-4">
+            <div class="relative">
+                <input type="text" id="locationInput" placeholder="Type Location"
+                       class="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 w-full">
+                <ul id="filteredLocations" class="absolute z-10 bg-white border border-gray-300 mt-1 rounded-md w-full hidden"></ul>
+            </div>
+
+            <input type="text" id="website" placeholder="Enter Website URL"
+                   class="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600">
+            <input type="text" id="query" placeholder="Enter Search Query"
+                   class="border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600">
+            <button id="searchButton" class="mt-4 md:mt-0 bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition duration-200">
+                Test SERP
+            </button>
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <h3 class="text-xl font-semibold">Results</h3>
+        <p id="error" class="text-red-600"></p>
+        <p id="websitePosition" class="text-green-600 font-semibold"></p>
+        <div id="resultsContainer" class="mt-4 p-4 border border-gray-300 rounded-md"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const locationInput = document.getElementById('locationInput');
+            const filteredLocations = document.getElementById('filteredLocations');
+            const searchButton = document.getElementById('searchButton');
+
+            let countries = {{ countries | tojson }};
+
+            locationInput.addEventListener('input', () => {
+                const value = locationInput.value.toLowerCase();
+                filteredLocations.innerHTML = '';
+                const filtered = countries.filter(country => country.name.toLowerCase().includes(value));
+                
+                if (value && filtered.length > 0) {
+                    filtered.forEach(loc => {
+                        const li = document.createElement('li');
+                        li.textContent = loc.name;
+                        li.className = 'p-2 cursor-pointer hover:bg-gray-100';
+                        li.addEventListener('click', () => {
+                            locationInput.value = loc.name;
+                            locationInput.dataset.selectedCountryCode = loc.code;
+                            filteredLocations.innerHTML = '';
+                        });
+                        filteredLocations.appendChild(li);
+                    });
+                    filteredLocations.classList.remove('hidden');
+                } else {
+                    filteredLocations.classList.add('hidden');
+                }
+            });
+
+            searchButton.addEventListener('click', () => {
+                const query = document.getElementById('query').value;
+                const website = document.getElementById('website').value;
+                const selectedCountryCode = locationInput.dataset.selectedCountryCode;
+                
+                fetch('/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, website, country_code: selectedCountryCode })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('error').textContent = data.error;
+                    } else {
+                        document.getElementById('websitePosition').textContent = data.website_position
+                            ? `Your website is in position: ${data.website_position}`
+                            : 'Your website is not in the SERP results.';
+                        
+                        const resultsContainer = document.getElementById('resultsContainer');
+                        resultsContainer.innerHTML = '';
+                        data.results.forEach((result, index) => {
+                            const resultItem = document.createElement('div');
+                            resultItem.className = 'mt-2 p-2 rounded border-2';
+                            resultItem.innerHTML = `
+                                <span class="font-semibold">Position: ${index + 1}</span>
+                                <a href="${result.link}" target="_blank" class="text-blue-600 underline ml-2">${result.title}</a>
+                                <p class="text-gray-500">${result.snippet}</p>
+                            `;
+                            resultsContainer.appendChild(resultItem);
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
